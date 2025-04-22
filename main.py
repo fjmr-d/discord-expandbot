@@ -4,13 +4,28 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# -------- .env からトークンを読み込む --------
+# -------- Flaskを使ったHealth Check対応 (Koyeb対策) --------
+import threading
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "OK"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=8000)
+
+threading.Thread(target=run_flask).start()
+
+# -------- .envからトークンを取得 --------
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 
-# -------- Botの初期設定 --------
+# -------- Discord Botの設定 --------
 intents = discord.Intents.default()
-intents.message_content = True  # メッセージ内容を読むために必要
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -18,7 +33,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Bot 起動完了: {bot.user}")
 
-# -------- URL検出＆ボタン付き確認 --------
+# -------- ツイートURL検出＆確認ボタン --------
 TWITTER_REGEX = r'https?://(?:x|twitter)\.com/([^\s]+)'
 
 class ConfirmView(discord.ui.View):
@@ -60,5 +75,5 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# -------- Bot起動 --------
+# -------- Botを起動 --------
 bot.run(token)
