@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# -------- Flaskを使ったHealth Check対応 (Koyeb対策) --------
+# ----- Flask (Health Check用) -----
 import threading
 from flask import Flask
 
@@ -19,11 +19,10 @@ def run_flask():
 
 threading.Thread(target=run_flask).start()
 
-# -------- .envからトークンを取得 --------
+# ----- Discord Bot 起動設定 -----
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 
-# -------- Discord Botの設定 --------
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -33,14 +32,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Bot 起動完了: {bot.user}")
 
-# -------- ツイートURL検出＆確認ボタン --------
+# ----- URL検出＆ボタン付き確認 -----
 TWITTER_REGEX = r'https?://(?:x|twitter)\.com/([^\s]+)'
 
 class ConfirmView(discord.ui.View):
     def __init__(self, original_urls):
-        super().__init__(timeout=60)
+        super().__init__(timeout=600)  # 10分タイムアウト
         self.original_urls = original_urls
         self.clicked = False
+        self.message = None  # Viewにメッセージを保持
 
     @discord.ui.button(label="展開する", style=discord.ButtonStyle.green)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -51,6 +51,7 @@ class ConfirmView(discord.ui.View):
             ]
             await interaction.response.send_message("展開リンクだよ！\n" + "\n".join(new_urls))
             self.clicked = True
+            await interaction.message.delete()
             self.stop()
 
     @discord.ui.button(label="展開しない", style=discord.ButtonStyle.red)
@@ -58,9 +59,15 @@ class ConfirmView(discord.ui.View):
         if not self.clicked:
             await interaction.response.send_message("了解、展開しないよ～", ephemeral=True)
             self.clicked = True
-            # メッセージ削除
             await interaction.message.delete()
             self.stop()
+
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.delete()
+            except discord.NotFound:
+                pass  # 既に削除済みでも無視
 
 @bot.event
 async def on_message(message):
@@ -71,11 +78,10 @@ async def on_message(message):
     if matches:
         original_urls = re.findall(r'https?://(?:x|twitter)\.com/[^\s]+', message.content)
         view = ConfirmView(original_urls)
-        await message.channel.send(
-            f"{message.author.mention} このツイート展開する？", view=view
-        )
+        msg = await message.channel.send(f"{message.author.mention} このツイート展開する？", view=view)
+        view.message = msg  # Viewにメッセージを渡す
 
     await bot.process_commands(message)
 
-# -------- Botを起動 --------
+# ----- Bot起動 -----
 bot.run(token)
