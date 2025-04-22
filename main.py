@@ -58,6 +58,8 @@ class ConfirmView(discord.ui.View):
         if not self.clicked:
             await interaction.response.send_message("了解、展開しないよ～", ephemeral=True)
             self.clicked = True
+            # メッセージ削除
+            await interaction.message.delete()
             self.stop()
 
 @bot.event
